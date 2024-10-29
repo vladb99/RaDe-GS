@@ -24,18 +24,23 @@ git clone https://github.com/BaowenZ/RaDe-GS.git --recursive
 ## Install dependencies.
 1. create an environment
 ```
-conda create -n radegs python=3.9
-conda activate radegs
+conda create -n 3DSSL-radegs python=3.9
+conda activate 3DSSL-radegs
 ```
 
 2. install pytorch and other dependencies.
 ```
-pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121
+#pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121
+pip install torch torchvision torchaudio --extra-index-url https://download.pytorch.org/whl/cu118
 pip install -r requirements.txt
 ```
 
 3. install submodules
 ```
+conda install nvidia/label/cuda-11.8.0::cuda-nvcc
+conda install nvidia/label/cuda-11.8.0::cuda-cudart-dev
+conda env config vars set CUDA_HOME=$CONDA_PREFIX
+
 pip install submodules/diff-gaussian-rasterization
 pip install submodules/simple-knn/
 
