@@ -20,7 +20,7 @@ from utils.general_utils import safe_state
 import uuid
 from tqdm import tqdm
 from utils.image_utils import psnr
-from utils.graphics_utils import point_double_to_normal, depth_double_to_normal
+from utils.graphics_utils import point_double_to_normal, depth_double_to_normal, fov2focal
 from argparse import ArgumentParser, Namespace
 from arguments import ModelParams, PipelineParams, OptimizationParams
 try:
@@ -76,13 +76,16 @@ def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoi
         serials = []
         cam_2_world_poses = dict()  # serial => world_2_cam_pose
         tmp_cam = viewpoint_stack[0]
-        intrinsics = Intrinsics(tmp_cam.FoVx, tmp_cam.FoVy, 0, 0)
+        # From dataset_readers: {1: Camera(id=1, model='PINHOLE', width=1554, height=1162, params=array([2892.33056641, 2883.17529297,  777.        ,  581.        ]))}
+        fy = fov2focal(tmp_cam.FoVy, tmp_cam.image_height)
+        fx = fov2focal(tmp_cam.FoVx, tmp_cam.image_width)
+        intrinsics = Intrinsics(fx, fy, 777., 581.)
 
         for viewpoint_cam in viewpoint_stack:
             gt_image = viewpoint_cam.original_image
             images[viewpoint_cam.image_name] = gt_image.cpu().detach().numpy()
 
-            cam_2_world_pose = Pose(matrix_or_rotation=viewpoint_cam.R, translation=viewpoint_cam.T, camera_coordinate_convention=CameraCoordinateConvention.OPEN_CV, pose_type=PoseType.CAM_2_WORLD)
+            cam_2_world_pose = Pose(matrix_or_rotation=viewpoint_cam.R, translation=viewpoint_cam.T, camera_coordinate_convention=CameraCoordinateConvention.OPEN_CV, pose_type=PoseType.WORLD_2_CAM)
             cam_2_world_poses[viewpoint_cam.image_name] = cam_2_world_pose
 
         # Visualize camera poses and images
