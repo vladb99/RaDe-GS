@@ -85,7 +85,7 @@ def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoi
             gt_image = viewpoint_cam.original_image
             images[viewpoint_cam.image_name] = gt_image.cpu().detach().numpy()
 
-            cam_2_world_pose = Pose(matrix_or_rotation=viewpoint_cam.R, translation=viewpoint_cam.T, camera_coordinate_convention=CameraCoordinateConvention.OPEN_CV, pose_type=PoseType.WORLD_2_CAM)
+            cam_2_world_pose = Pose(matrix_or_rotation=viewpoint_cam.R, translation=viewpoint_cam.T, camera_coordinate_convention=CameraCoordinateConvention.OPEN_CV, pose_type=PoseType.CAM_2_WORLD)
             cam_2_world_poses[viewpoint_cam.image_name] = cam_2_world_pose
 
         # Visualize camera poses and images
