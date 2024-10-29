@@ -33,6 +33,11 @@ from scene.cameras import Camera
 import matplotlib.pyplot as plt
 from utils.vis_utils import apply_depth_colormap
 
+import pyvista as pv
+from dreifus.pyvista import add_coordinate_axes, add_camera_frustum
+from dreifus.matrix import Pose, Intrinsics
+from dreifus.camera import CameraCoordinateConvention, PoseType
+
 # function L1_loss_appearance is fork from GOF https://github.com/autonomousvision/gaussian-opacity-fields/blob/main/train.py
 def L1_loss_appearance(image, gt_image, gaussians, view_idx, return_transformed_image=False):
     appearance_embedding = gaussians.get_apperance_embedding(view_idx)
@@ -58,11 +63,35 @@ def L1_loss_appearance(image, gt_image, gaussians, view_idx, return_transformed_
         return transformed_image
 
 
-def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoint_iterations, checkpoint, debug_from):
+def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoint_iterations, checkpoint, debug_from, visualize):
     first_iter = 0
     tb_writer = prepare_output_and_logger(dataset)
     gaussians = GaussianModel(dataset.sh_degree)
     scene = Scene(dataset, gaussians)
+
+    if visualize:
+        viewpoint_stack = scene.getTrainCameras().copy()
+
+        images = dict()
+        serials = []
+        cam_2_world_poses = dict()  # serial => world_2_cam_pose
+        tmp_cam = viewpoint_stack[0]
+        intrinsics = Intrinsics(tmp_cam.FoVx, tmp_cam.FoVy, 0, 0)
+
+        for viewpoint_cam in viewpoint_stack:
+            gt_image = viewpoint_cam.original_image
+            images[viewpoint_cam.image_name] = gt_image.cpu().detach().numpy()
+
+            cam_2_world_pose = Pose(matrix_or_rotation=viewpoint_cam.R, translation=viewpoint_cam.T, camera_coordinate_convention=CameraCoordinateConvention.OPEN_CV, pose_type=PoseType.CAM_2_WORLD)
+            cam_2_world_poses[viewpoint_cam.image_name] = cam_2_world_pose
+
+        # Visualize camera poses and images
+        p = pv.Plotter()
+        add_coordinate_axes(p, scale=0.1)
+        for serial in serials:
+            add_camera_frustum(p, cam_2_world_poses[serial], intrinsics, image=images[serial])
+        p.show()
+
     gaussians.training_setup(opt)
     if checkpoint:
         (model_params, first_iter) = torch.load(checkpoint)
@@ -310,7 +339,8 @@ if __name__ == "__main__":
              saving_iterations=args.save_iterations, 
              checkpoint_iterations=args.checkpoint_iterations, 
              checkpoint=args.start_checkpoint, 
-             debug_from=args.debug_from)
+             debug_from=args.debug_from,
+             visualize=True)
 
     # All done
     print("\nTraining complete.")
