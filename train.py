@@ -75,22 +75,26 @@ def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoi
         images = dict()
         serials = []
         world_2_cam_poses = dict()  # serial => world_2_cam_pose
+
         tmp_cam = viewpoint_stack[0]
-        # From dataset_readers: {1: Camera(id=1, model='PINHOLE', width=1554, height=1162, params=array([2892.33056641, 2883.17529297,  777.        ,  581.        ]))}
         fy = fov2focal(tmp_cam.FoVy, tmp_cam.image_height)
         fx = fov2focal(tmp_cam.FoVx, tmp_cam.image_width)
-        intrinsics = Intrinsics(fx, fy, 777., 581.)
+        intrinsics = Intrinsics(fx, fy, 0, 0)
 
         for viewpoint_cam in viewpoint_stack:
-            gt_image = viewpoint_cam.original_image
-            images[viewpoint_cam.image_name] = gt_image.cpu().detach().numpy()
+            serial = viewpoint_cam.image_name
+            serials.append(serial)
 
-            world_2_cam_pose = Pose(matrix_or_rotation=viewpoint_cam.R, translation=viewpoint_cam.T, camera_coordinate_convention=CameraCoordinateConvention.OPEN_CV, pose_type=PoseType.WORLD_2_CAM)
-            world_2_cam_poses[viewpoint_cam.image_name] = world_2_cam_pose
+            gt_image = viewpoint_cam.original_image
+            images[serial] = gt_image.cpu().detach().numpy().transpose(1, 2, 0)
+
+            world_2_cam_pose = Pose(matrix_or_rotation=viewpoint_cam.R.T, translation=viewpoint_cam.T,
+                                camera_coordinate_convention=CameraCoordinateConvention.OPEN_CV, pose_type=PoseType.WORLD_2_CAM)
+            world_2_cam_poses[serial] = world_2_cam_pose
 
         # Visualize camera poses and images
         p = pv.Plotter()
-        add_coordinate_axes(p, scale=0.1)
+        #add_coordinate_axes(p, scale=0.1)
         for serial in serials:
             add_camera_frustum(p, world_2_cam_poses[serial], intrinsics, image=images[serial])
         p.show()
