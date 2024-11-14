@@ -59,6 +59,7 @@ class ModelParams(ParamGroup):
         self.use_coord_map = False
         self.disable_filter3D = False
         self.kernel_size = 0.0 # Size of 2D filter in mip-splatting
+        self.use_random_init = False
         super().__init__(parser, "Loading Parameters", sentinel)
 
     def extract(self, args):

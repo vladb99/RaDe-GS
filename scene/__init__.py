@@ -12,8 +12,10 @@
 import os
 import random
 import json
+import torch
 from utils.system_utils import searchForMaxIteration
 from scene.dataset_readers import sceneLoadTypeCallbacks
+from scene.gaussian_model import BasicPointCloud
 from scene.gaussian_model import GaussianModel
 from arguments import ModelParams
 from utils.camera_utils import cameraList_from_camInfos, camera_to_JSON
@@ -78,6 +80,11 @@ class Scene:
                                                            "point_cloud",
                                                            "iteration_" + str(self.loaded_iter),
                                                            "point_cloud.ply"))
+        elif args.use_random_init:
+            # Initialize with random 3D points
+            pointcloud = BasicPointCloud(points=torch.randn((len(scene_info.point_cloud.points), 3)) / 20, 
+                                         colors=torch.randn((len(scene_info.point_cloud.points), 3)), normals=None)
+            self.gaussians.create_from_pcd(pointcloud, self.cameras_extent)
         else:
             self.gaussians.create_from_pcd(scene_info.point_cloud, self.cameras_extent)
 

@@ -4,3 +4,5 @@ scikit-image
 opencv-python
 plyfile
 tqdm
+pyvista
+dreifus
