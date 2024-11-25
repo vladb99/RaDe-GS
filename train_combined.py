@@ -1,14 +1,46 @@
-from argparse import ArgumentParser
+from argparse import ArgumentParser, Namespace
 import torch
 import numpy as np
 import random
 from arguments.combined import ModelParams, OptimizationParams, PipelineParams, ModelHiddenParams
 import sys
-
+import os
 from utils.general_utils import safe_state
+import uuid
+try:
+    from torch.utils.tensorboard import SummaryWriter
+    TENSORBOARD_FOUND = True
+except ImportError:
+    TENSORBOARD_FOUND = False
 
-def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoint_iterations, checkpoint, debug_from, visualize):
-    pass
+def training(dataset, hyper, opt, pipe, testing_iterations, saving_iterations, checkpoint_iterations, checkpoint, debug_from, visualize):
+    first_iter = 0
+
+    tb_writer = prepare_output_and_logger()
+
+    gaussians = GaussianModelCombined(dataset.sh_degree, hyper)
+
+def prepare_output_and_logger():
+    if not args.model_path:
+        if os.getenv('OAR_JOB_ID'):
+            unique_str = os.getenv('OAR_JOB_ID')
+        else:
+            unique_str = str(uuid.uuid4())
+        args.model_path = os.path.join("./output/", unique_str[0:10])
+
+    # Set up output folder
+    print("Output folder: {}".format(args.model_path))
+    os.makedirs(args.model_path, exist_ok=True)
+    with open(os.path.join(args.model_path, "cfg_args"), 'w') as cfg_log_f:
+        cfg_log_f.write(str(Namespace(**vars(args))))
+
+    # Create Tensorboard writer
+    tb_writer = None
+    if TENSORBOARD_FOUND:
+        tb_writer = SummaryWriter(args.model_path)
+    else:
+        print("Tensorboard not available: not logging progress")
+    return tb_writer
 
 def setup_seed(seed):
     torch.manual_seed(seed)
@@ -37,7 +69,6 @@ if __name__ == "__main__":
     parser.add_argument("--quiet", action="store_true")
     parser.add_argument("--checkpoint_iterations", nargs="+", type=int, default=[])
     parser.add_argument("--start_checkpoint", type=str, default = None)
-    parser.add_argument("--expname", type=str, default = "")
     parser.add_argument("--configs", type=str, default = "")
 
     args = parser.parse_args(sys.argv[1:])
@@ -58,6 +89,7 @@ if __name__ == "__main__":
     # network_gui.init(args.ip, args.port)
     # torch.autograd.set_detect_anomaly(args.detect_anomaly)
     training(dataset=lp.extract(args),
+             hyper=hp.extract(args),
              opt=op.extract(args),
              pipe=pp.extract(args),
              testing_iterations=args.test_iterations,
