@@ -2,16 +2,20 @@ from argparse import ArgumentParser, Namespace
 import torch
 import numpy as np
 import random
-from arguments.combined import ModelParams, OptimizationParams, PipelineParams, ModelHiddenParams
 import sys
 import os
-from utils.general_utils import safe_state
 import uuid
 try:
     from torch.utils.tensorboard import SummaryWriter
     TENSORBOARD_FOUND = True
 except ImportError:
     TENSORBOARD_FOUND = False
+
+from arguments.combined import ModelParams, OptimizationParams, PipelineParams, ModelHiddenParams
+
+from scene.combined.gaussian_model_combined import GaussianModelCombined
+
+from utils.general_utils import safe_state
 
 def training(dataset, hyper, opt, pipe, testing_iterations, saving_iterations, checkpoint_iterations, checkpoint, debug_from, visualize):
     first_iter = 0
