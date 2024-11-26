@@ -39,23 +39,20 @@ def training(dataset, hyper, opt, pipe, testing_iterations, saving_iterations, c
         serials = []
         world_2_cam_poses = dict()  # serial => world_2_cam_pose
 
-        tmp_cam = viewpoint_stack[0]
-        fy = fov2focal(tmp_cam.FoVy, tmp_cam.image_height)
-        fx = fov2focal(tmp_cam.FoVx, tmp_cam.image_width)
-        intrinsics = Intrinsics(fx, fy, 0, 0)
-
         # viewpoint_stack doesn't contain 16 cameras anymore as in the static case, but 16 * N, where N is the number of frames.
         # cam_names keeps track, from which direction we already got an image, in order to visualize
         cam_names = []
-        NUM_DIFFERENT_CAMERAS = 16
+        # 15, because we use 1 camera as test camera
+        NUM_DIFFERENT_CAMERAS = 15
         index = 0
 
         while len(cam_names) < NUM_DIFFERENT_CAMERAS:
             viewpoint_cam = viewpoint_stack[index]
+            tmp_cam = viewpoint_stack[index]
             index += 1
 
             cam_name = viewpoint_cam.image_name.split("/")[0] # e.g. cam00/0000.png
-            if viewpoint_cam.image_name.split("/")[0] not in cam_names:
+            if viewpoint_cam.image_name.split("/")[0] not in cam_names and viewpoint_cam.original_image is not None:
                 cam_names.append(cam_name)
             else:
                 continue
@@ -69,6 +66,10 @@ def training(dataset, hyper, opt, pipe, testing_iterations, saving_iterations, c
             world_2_cam_pose = Pose(matrix_or_rotation=viewpoint_cam.R.T, translation=viewpoint_cam.T,
                                 camera_coordinate_convention=CameraCoordinateConvention.OPEN_CV, pose_type=PoseType.WORLD_2_CAM)
             world_2_cam_poses[serial] = world_2_cam_pose
+
+        fy = fov2focal(tmp_cam.FoVy, tmp_cam.image_height)
+        fx = fov2focal(tmp_cam.FoVx, tmp_cam.image_width)
+        intrinsics = Intrinsics(fx, fy, 0, 0)
 
         # Visualize camera poses and images
         p = pv.Plotter()
