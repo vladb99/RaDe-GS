@@ -5,6 +5,11 @@ import random
 import sys
 import os
 import uuid
+import pyvista as pv
+from dreifus.pyvista import add_camera_frustum
+from dreifus.matrix import Pose, Intrinsics
+from dreifus.camera import CameraCoordinateConvention, PoseType
+
 try:
     from torch.utils.tensorboard import SummaryWriter
     TENSORBOARD_FOUND = True
@@ -14,8 +19,10 @@ except ImportError:
 from arguments.combined import ModelParams, OptimizationParams, PipelineParams, ModelHiddenParams
 
 from scene.combined.gaussian_model_combined import GaussianModelCombined
+from scene.combined import SceneCombined
 
 from utils.general_utils import safe_state
+from utils.graphics_utils import fov2focal
 
 def training(dataset, hyper, opt, pipe, testing_iterations, saving_iterations, checkpoint_iterations, checkpoint, debug_from, visualize):
     first_iter = 0
@@ -23,6 +30,52 @@ def training(dataset, hyper, opt, pipe, testing_iterations, saving_iterations, c
     tb_writer = prepare_output_and_logger()
 
     gaussians = GaussianModelCombined(dataset.sh_degree, hyper)
+    scene = SceneCombined(dataset, gaussians, shuffle=dataset.shuffle, duration=hyper.total_num_frames)
+
+    if visualize:
+        viewpoint_stack = scene.getTrainCameras().copy()
+
+        images = dict()
+        serials = []
+        world_2_cam_poses = dict()  # serial => world_2_cam_pose
+
+        tmp_cam = viewpoint_stack[0]
+        fy = fov2focal(tmp_cam.FoVy, tmp_cam.image_height)
+        fx = fov2focal(tmp_cam.FoVx, tmp_cam.image_width)
+        intrinsics = Intrinsics(fx, fy, 0, 0)
+
+        # viewpoint_stack doesn't contain 16 cameras anymore as in the static case, but 16 * N, where N is the number of frames.
+        # cam_names keeps track, from which direction we already got an image, in order to visualize
+        cam_names = []
+        NUM_DIFFERENT_CAMERAS = 16
+        index = 0
+
+        while len(cam_names) < NUM_DIFFERENT_CAMERAS:
+            viewpoint_cam = viewpoint_stack[index]
+            index += 1
+
+            cam_name = viewpoint_cam.image_name.split("/")[0] # e.g. cam00/0000.png
+            if viewpoint_cam.image_name.split("/")[0] not in cam_names:
+                cam_names.append(cam_name)
+            else:
+                continue
+
+            serial = viewpoint_cam.image_name
+            serials.append(serial)
+
+            gt_image = viewpoint_cam.original_image
+            images[serial] = gt_image.cpu().detach().numpy().transpose(1, 2, 0)
+
+            world_2_cam_pose = Pose(matrix_or_rotation=viewpoint_cam.R.T, translation=viewpoint_cam.T,
+                                camera_coordinate_convention=CameraCoordinateConvention.OPEN_CV, pose_type=PoseType.WORLD_2_CAM)
+            world_2_cam_poses[serial] = world_2_cam_pose
+
+        # Visualize camera poses and images
+        p = pv.Plotter()
+        #add_coordinate_axes(p, scale=0.1)
+        for serial in serials:
+            add_camera_frustum(p, world_2_cam_poses[serial], intrinsics, image=images[serial])
+        p.show()
 
 def prepare_output_and_logger():
     if not args.model_path:

@@ -3,24 +3,24 @@
 # GRAPHDECO research group, https://team.inria.fr/graphdeco
 # All rights reserved.
 #
-# This software is free for non-commercial, research and evaluation use 
+# This software is free for non-commercial, research and evaluation use
 # under the terms of the LICENSE.md file.
 #
 # For inquiries contact  george.drettakis@inria.fr
 #
 
-from scene.cameras import Camera
+from scene.combined.cameras import Camera
 import numpy as np
 from utils.general_utils import PILtoTorch
 from utils.graphics_utils import fov2focal
-import torch
+import os
 
 WARNED = False
 
-def loadCam(args, id, cam_info, resolution_scale):
-    orig_w, orig_h = cam_info.image.size
+def loadCamv2(args, id, cam_info, resolution_scale):
+    orig_w, orig_h = cam_info.width, cam_info.height
 
-    if args.resolution in [1, 2, 4, 8]:
+    if args.resolution in [1., 2., 4., 8.]:
         resolution = round(orig_w/(resolution_scale * args.resolution)), round(orig_h/(resolution_scale * args.resolution))
     else:  # should be a type that converts to float
         if args.resolution == -1:
@@ -39,32 +39,49 @@ def loadCam(args, id, cam_info, resolution_scale):
         scale = float(global_down) * float(resolution_scale)
         resolution = (int(orig_w / scale), int(orig_h / scale))
 
-    # resized_image_rgb = PILtoTorch(cam_info.image, resolution)
+    # print(orig_w, orig_h)
+    # # print(scale)
+    # print(resolution, args.resolution, resolution_scale)
+    # exit()
 
-    # gt_image = resized_image_rgb[:3, ...]
-    # loaded_mask = None
-
-    # if resized_image_rgb.shape[0] == 4:
-    #     loaded_mask = resized_image_rgb[3:4, ...]
-    if len(cam_info.image.split()) > 3:
-        resized_image_rgb = torch.cat([PILtoTorch(im, resolution) for im in cam_info.image.split()[:3]], dim=0)
-        loaded_mask = PILtoTorch(cam_info.image.split()[3], resolution)
-        gt_image = resized_image_rgb
-    else:
+    if cam_info.image:
         resized_image_rgb = PILtoTorch(cam_info.image, resolution)
+        gt_image = resized_image_rgb[:3, ...]
         loaded_mask = None
-        gt_image = resized_image_rgb
+        if resized_image_rgb.shape[1] == 4:
+            loaded_mask = resized_image_rgb[3:4, ...]
+    else:
+        resized_image_rgb = None
+        gt_image = None
+        loaded_mask = None
 
-    return Camera(colmap_id=cam_info.uid, R=cam_info.R, T=cam_info.T, 
-                  FoVx=cam_info.FovX, FoVy=cam_info.FovY, 
+    cameradirect = cam_info.hpdirecitons
+    camerapose = cam_info.pose
+    try:
+        cam_no = int(os.path.dirname(cam_info.image_path).split('/')[-1][3:])
+        frame_no = int(cam_info.image_name.split('/')[-1][:-4])
+    except:
+        cam_no = cam_info.uid
+        frame_no = cam_info.uid
+
+    if camerapose is not None:
+        rays_o, rays_d = 1, cameradirect
+    else :
+        rays_o = None
+        rays_d = None
+
+    return Camera(colmap_id=cam_info.uid, R=cam_info.R, T=cam_info.T,
+                  FoVx=cam_info.FovX, FoVy=cam_info.FovY,
                   image=gt_image, gt_alpha_mask=loaded_mask,
-                  image_name=cam_info.image_name, uid=id, data_device=args.data_device)
+                  image_name=cam_info.image_name, uid=id, data_device=args.data_device, near=cam_info.near, far=cam_info.far, timestamp=cam_info.timestamp, rayo=rays_o, rayd=rays_d,cxr=cam_info.cxr,cyr=cam_info.cyr,
+                  cam_no=cam_no, frame_no=frame_no, image_path=cam_info.image_path, img_wh=resolution)
 
-def cameraList_from_camInfos(cam_infos, resolution_scale, args):
+def cameraList_from_camInfosv2(cam_infos, resolution_scale, args):
     camera_list = []
+    from tqdm import tqdm
 
-    for id, c in enumerate(cam_infos):
-        camera_list.append(loadCam(args, id, c, resolution_scale))
+    for id, c in tqdm(enumerate(cam_infos), total=len(cam_infos)):
+        camera_list.append(loadCamv2(args, id, c, resolution_scale))
 
     return camera_list
 

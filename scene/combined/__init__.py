@@ -18,12 +18,12 @@ from arguments.combined import ModelParams
 from scene.combined.gaussian_model_combined import GaussianModelCombined
 from scene.data_readers_dynamic import sceneLoadTypeCallbacks
 
-from utils.camera_utils import camera_to_JSON, cameraList_from_camInfosv2
+from utils.combined.camera_utils import camera_to_JSON, cameraList_from_camInfosv2
 from utils.graphics_utils import BasicPointCloud
 from utils.system_utils import searchForMaxIteration
 
 
-class Scene:
+class SceneCombined:
     gaussians: GaussianModelCombined
 
     def __init__(self, args: ModelParams, gaussians: GaussianModelCombined, load_iteration=None, shuffle=True, resolution_scales=[1.0], duration=None):
