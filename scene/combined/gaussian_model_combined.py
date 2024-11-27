@@ -208,6 +208,10 @@ class GaussianModelCombined:
         for camera in cameras:
             # focal_x = float(camera.intrinsic[0,0])
             # focal_y = float(camera.intrinsic[1,1])
+
+            if type(camera.original_image) == type(None):
+                camera.load_image()  # for lazy loading (to avoid OOM issue)
+
             W, H = camera.image_width, camera.image_height
             focal_x = W / (2 * math.tan(camera.FoVx / 2.))
             focal_y = H / (2 * math.tan(camera.FoVy / 2.))

@@ -144,6 +144,9 @@ def training(dataset, hyper, opt, pipe, testing_iterations, saving_iterations, c
 
         reg_kick_on = iteration >= opt.regularization_from_iter
 
+        if type(viewpoint_cam.original_image) == type(None):
+            viewpoint_cam.load_image()  # for lazy loading (to avoid OOM issue)
+
         cam_no = viewpoint_cam.cam_no
         render_pkg = render(
             viewpoint_cam,
@@ -253,13 +256,6 @@ def training(dataset, hyper, opt, pipe, testing_iterations, saving_iterations, c
             if (iteration in saving_iterations):
                 print("\n[ITER {}] Saving Gaussians".format(iteration))
                 scene.save(iteration)
-
-            if dataset.render_process:
-                if (iteration < 1000 and iteration % 10 == 1) \
-                    or (iteration < 3000 and iteration % 50 == 1) \
-                        or (iteration < 10000 and iteration %  100 == 1) \
-                            or (iteration < 60000 and iteration % 100 ==1):
-                    render_training_image(scene, gaussians, test_cams, render, pipe, background, iteration-1, iter_start.elapsed_time(iter_end))
 
             # Densification
             # TODO, RaDe-GS and E-D3DGS have different opt.densify_until_iter

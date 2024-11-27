@@ -16,7 +16,7 @@ import torch
 from arguments.combined import ModelParams
 
 from scene.combined.gaussian_model_combined import GaussianModelCombined
-from scene.combined.data_readers_dynamic import sceneLoadTypeCallbacks
+from scene.combined.dataset_readers_dynamic import sceneLoadTypeCallbacks
 
 from utils.combined.camera_utils import camera_to_JSON, cameraList_from_camInfosv2
 from utils.graphics_utils import BasicPointCloud
