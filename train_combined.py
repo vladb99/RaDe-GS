@@ -12,12 +12,6 @@ from dreifus.camera import CameraCoordinateConvention, PoseType
 from tqdm import tqdm
 from random import randint
 
-try:
-    from torch.utils.tensorboard import SummaryWriter
-    TENSORBOARD_FOUND = True
-except ImportError:
-    TENSORBOARD_FOUND = False
-
 from train import L1_loss_appearance
 
 from arguments.combined import ModelParams, OptimizationParams, PipelineParams, ModelHiddenParams
@@ -29,8 +23,15 @@ from scene.combined.cameras import Camera
 from utils.general_utils import safe_state
 from utils.graphics_utils import fov2focal, depth_double_to_normal, point_double_to_normal
 from utils.loss_utils import l1_loss, ssim
+from utils.combined.extra_utils import o3d_knn, weighted_l2_loss_v2
 
 from gaussian_renderer.combined import render
+
+try:
+    from torch.utils.tensorboard import SummaryWriter
+    TENSORBOARD_FOUND = True
+except ImportError:
+    TENSORBOARD_FOUND = False
 
 def training(dataset, hyper, opt, pipe, testing_iterations, saving_iterations, checkpoint_iterations, checkpoint, debug_from, visualize):
     first_iter = 0
@@ -189,10 +190,34 @@ def training(dataset, hyper, opt, pipe, testing_iterations, saving_iterations, c
             lambda_depth_normal = 0
             depth_normal_loss = torch.tensor([0], dtype=torch.float32, device="cuda")
 
+        # TODO, E-D3DGS does this a little bit different
         rgb_loss = (1.0 - opt.lambda_dssim) * Ll1_render + opt.lambda_dssim * (
                     1.0 - ssim(rendered_image, gt_image.unsqueeze(0)))
 
+        # TODO, E-D3DGS doesn't not opacity reset, but uses the mean opacity of all gaussians to regularize
         loss = rgb_loss + depth_normal_loss * lambda_depth_normal
+
+        # From E-D3DGS
+        # embedding reg using knn (https://github.com/JonathonLuiten/Dynamic3DGaussians)
+        if prev_num_pts != gaussians._xyz.shape[0]:
+            neighbor_sq_dist, neighbor_indices = o3d_knn(gaussians._xyz.detach().cpu().numpy(), 20)
+            neighbor_weight = np.exp(-2000 * neighbor_sq_dist)
+            neighbor_indices = torch.tensor(neighbor_indices).cuda().long().contiguous()
+            neighbor_weight = torch.tensor(neighbor_weight).cuda().float().contiguous()
+            prev_num_pts = gaussians._xyz.shape[0]
+
+        emb = gaussians._embedding[:, None, :].repeat(1, 20, 1)
+        emb_knn = gaussians._embedding[neighbor_indices]
+        loss += opt.reg_coef * weighted_l2_loss_v2(emb, emb_knn, neighbor_weight)
+
+        # smoothness reg on temporal embeddings
+        if opt.coef_tv_temporal_embedding > 0:
+            weights = gaussians._deformation.weight
+            N, C = weights.shape
+            first_difference = weights[1:, :] - weights[N - 1, :]
+            second_difference = first_difference[1:, :] - first_difference[N - 2, :]
+            loss += opt.coef_tv_temporal_embedding * torch.square(second_difference).mean()
+
         loss.backward()
 
         iter_end.record()
