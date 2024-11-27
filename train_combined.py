@@ -261,6 +261,40 @@ def training(dataset, hyper, opt, pipe, testing_iterations, saving_iterations, c
                             or (iteration < 60000 and iteration % 100 ==1):
                     render_training_image(scene, gaussians, test_cams, render, pipe, background, iteration-1, iter_start.elapsed_time(iter_end))
 
+            # Densification
+            # TODO, RaDe-GS and E-D3DGS have different opt.densify_until_iter
+            if iteration < opt.densify_until_iter:
+                # Keep track of max radii in image-space for pruning
+                gaussians.max_radii2D[visibility_filter] = torch.max(gaussians.max_radii2D[visibility_filter], radii[visibility_filter])
+                gaussians.add_densification_stats(viewspace_point_tensor, visibility_filter)
+
+                # TODO, for now using RaDe-GS densification configuration
+                if iteration > opt.densify_from_iter and iteration % opt.densification_interval == 0:
+                    size_threshold = 20 if iteration > opt.opacity_reset_interval else None
+                    gaussians.densify_and_prune(opt.densify_grad_threshold, 0.05, scene.cameras_extent, size_threshold)
+                    if dataset.disable_filter3D:
+                        gaussians.reset_3D_filter()
+                    else:
+                        gaussians.compute_3D_filter(cameras=train_cams)
+
+                if iteration % opt.opacity_reset_interval == 0 or (dataset.white_background and iteration == opt.densify_from_iter):
+                    gaussians.reset_opacity()
+
+            if iteration % 100 == 0 and iteration > opt.densify_until_iter and not dataset.disable_filter3D:
+                if iteration < opt.iterations - 100:
+                    # don't update in the end of training
+                    gaussians.compute_3D_filter(cameras=train_cams)
+
+            # Optimizer step
+            if iteration < opt.iterations:
+                gaussians.optimizer.step()
+                gaussians.optimizer.zero_grad(set_to_none=True)
+
+            if (iteration in checkpoint_iterations):
+                print("\n[ITER {}] Saving Checkpoint".format(iteration))
+                torch.save((gaussians.capture(), iteration),
+                           scene.model_path + "/chkpnt" + str(iteration) + ".pth")
+
 # TODO, also log E-D3DGS stuff, like gaussian and temporal embeddings regularization
 def training_report(tb_writer, iteration, Ll1, loss, normal_loss, l1_loss, elapsed, testing_iterations, scene : SceneCombined, renderFunc, renderArgs):
     if tb_writer:
