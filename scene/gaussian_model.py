@@ -23,6 +23,7 @@ from utils.general_utils import strip_symmetric, build_scaling_rotation
 from scene.appearance_network import AppearanceNetwork
 import trimesh
 import math
+import open3d as o3d
 
 class GaussianModel:
     # use mip-splatting filters
@@ -411,6 +412,17 @@ class GaussianModel:
         # xyz = xyz[mask]
         # scale = scale[mask]
         # rots = rots[mask]
+
+        pcd = o3d.geometry.PointCloud()
+        pcd.points = o3d.utility.Vector3dVector(xyz.detach().cpu().numpy())
+        _, indices = pcd.remove_statistical_outlier(nb_neighbors=20, std_ratio=1.0)
+        mask = torch.zeros(xyz.shape[0], device=xyz.device)
+        mask = torch.round(mask).bool().squeeze()
+        mask[indices] = 1
+
+        xyz = xyz[mask]
+        scale = scale[mask]
+        rots = rots[mask]
         
         vertices = M.vertices.T    
         vertices = torch.from_numpy(vertices).float().cuda().unsqueeze(0).repeat(xyz.shape[0], 1, 1)
